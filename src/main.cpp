@@ -28,7 +28,7 @@ Motors motors;
 Encoders encoders;
 
 //Global Variables
-int motorSpeed = 90;
+int motorSpeed = 80;
 int motorSpeedRev = motorSpeed/1.25;
 int motorSpeedTurn = motorSpeed/2;
 signed long encCountsL = encoders.getCountsAndResetLeft();
@@ -85,6 +85,28 @@ const char reverseArrows[] PROGMEM = {
   0b00000,
 };
 
+const char perSec[] PROGMEM = {
+  0b00010,
+  0b00100,
+  0b01000,
+  0b10011,
+  0b00100,
+  0b00011,
+  0b00001,
+  0b00110
+};
+
+const char reload[] PROGMEM = {
+  0B00000,
+  0B10110,
+  0B11001,
+  0B11101,
+  0B00001,
+  0B10001,
+  0B01110,
+  0B00000
+};
+
 //Menu display declarations
 char mainMenu(char);
 char opMenu(char);
@@ -105,12 +127,17 @@ void turtleAuto();
 void doubtEvents();
 void setDist();
 
+//Conversion functions
+float tick2cm(int);
+
 void setup() {
   //loads custom characters to memory
   display.loadCustomCharacter(forwardArrows, 1);
   display.loadCustomCharacter(reverseArrows, 2);
   display.loadCustomCharacter(backArrow, 7);
   display.loadCustomCharacter(fullBlock, 3);
+  display.loadCustomCharacter(perSec, 4);
+  display.loadCustomCharacter(reload, 5);
 
   display.setLayout21x8();
   display.noAutoDisplay();
@@ -327,7 +354,7 @@ int speed(int vel){
   while(true){
     //vel edit
     //reduce by 20 until 0
-    if (buttonA.getSingleDebouncedPress() && vel >= 0){
+    if (buttonA.getSingleDebouncedPress() && vel > 0){
       vel = vel - 20;  
     //increase by 20 to limit
     } 
@@ -540,18 +567,26 @@ void encodersSet(int sens) {
     display.print(encCountsR);
     display.print("     ");
 
+    // display.gotoXY(0,4);
+    // if(encoders.checkErrorLeft()) {
+    //   display.print("Error");
+    // } else {
+    //   display.print("     ");
+    // }
+    // display.gotoXY(16,4);
+    // if(encoders.checkErrorRight()) {
+    //   display.print("Error");
+    // } else {
+    //   display.print("     ");
+    // }
+
     display.gotoXY(0,4);
-    if(encoders.checkErrorLeft()) {
-      display.print("Error");
-    } else {
-      display.print("     ");
-    }
-    display.gotoXY(16,4);
-    if(encoders.checkErrorRight()) {
-      display.print("Error");
-    } else {
-      display.print("     ");
-    }
+    display.print(tick2cm(encCountsL));
+    display.print("cm");
+    display.gotoXY(14,4);
+    display.print(tick2cm(encCountsR));
+    display.print("cm");
+    
 
     display.displayPartial(3, 0, 23);
 
@@ -812,17 +847,17 @@ void setDist() {
   display.noInvert();
   display.setLayout21x8();
   display.gotoXY(0,0);
-  display.print("Set Distance:        ");
+  display.print("Set Distance:  Config");
   display.gotoXY(0,1);
   display.print("Speed:               ");
   display.gotoXY(0,2);
   display.print("Distance:            ");
   display.gotoXY(0,3);
   display.print("Direction:           ");
-  display.gotoXY(0,5);
-  display.print(" A        B        C ");
   display.gotoXY(0,6);
-  display.print(" +       SET       - ");
+  display.print(" A        B        C ");
+  display.gotoXY(0,7);
+  display.print(" -       SET       + ");
   display.gotoXY(0,7);
   //display.print("               Hold B\7");
 
@@ -830,37 +865,40 @@ void setDist() {
   bool dir = true;
   int speed = 0;
   int modeLoc = 0;
-  unsigned long prevTime = millis();
-  unsigned long pressTime = 0; 
+  int8_t deltaTime = 50; //time in ms
+  double prevTime = 0; 
+  float distCurrent = 0;
+  float encLocL = 0;
+  float encLocR = 0;
+  float velCurrent = 0;
+  float distTotal = 0;
   
-  while(true) {
-    // if (buttonB.isPressed()) {
-    //   pressTime = millis();
-    //   if (pressTime - prevTime > 5000) {
-    //     prevTime = 0;
-    //     pressTime = 0;
-    //     break;
-    //   }
-    //   else {
-    //     prevTime = 0;
-    //     pressTime = 0;
-    //   }
-    // }
+  while(modeLoc != 4) {
     switch (modeLoc) {
     case 0:
+      display.gotoXY(0,0);
+      display.print("Set Distance:  Config");
+      display.gotoXY(0,6);
+      display.print(" A        B        C ");
+      display.gotoXY(0,7);
+      display.print(" -       SET       + ");
       while(true) {
         display.gotoXY(12,1);
         display.print("->");
         display.gotoXY(15,1);
         display.print(speed);
         display.print(" ");
-        if(buttonA.getSingleDebouncedPress() && speed < 300) {
-          speed = speed + 20;
+        display.gotoXY(18,1);
+        display.print("cm\4");
+        if(buttonC.getSingleDebouncedPress() && speed < 150) {
+          speed = speed + 15;
         }
-        else if(buttonC.getSingleDebouncedPress() && speed > 0) {
-          speed = speed - 20;
+        else if(buttonA.getSingleDebouncedPress() && speed > 0) {
+          speed = speed - 15;
         }
         else if(buttonB.getSingleDebouncedPress()) {
+          // speed = calculo
+          speed = (speed * 400)/150;
           display.gotoXY(0,1);
           display.print("Speed:         ");
           modeLoc++;
@@ -875,12 +913,12 @@ void setDist() {
         display.gotoXY(15,2);
         display.print(dist);
         display.print("   ");
-        display.gotoXY(20,2);
+        display.gotoXY(19,2);
         display.print("cm");
-        if(buttonA.getSingleDebouncedPress() && dist < 9999) {
+        if(buttonC.getSingleDebouncedPress() && dist < 9999) {
           dist = dist + 20;
         }
-        else if(buttonC.getSingleDebouncedPress() && dist > 0) {
+        else if(buttonA.getSingleDebouncedPress() && dist > 0) {
           dist = dist - 20;
         }
         else if(buttonB.getSingleDebouncedPress()) {
@@ -892,10 +930,110 @@ void setDist() {
       }
       break;
     case 2:
+      while(true) {
+        display.gotoXY(0,7);
+        display.print("\1/\2      SEL        ");
+        display.gotoXY(12,3);
+        display.print("->");
+        display.gotoXY(15,3);
+        if(dir) {
+          display.print("FWD \1");
+        } else {
+          display.print("REV \2");
+        }
+        if(buttonA.getSingleDebouncedPress()) {
+          dir = !dir;
+        }
+        else if(buttonB.getSingleDebouncedPress()) {
+          display.gotoXY(0,3);
+          display.print("Direction:     ");
+          modeLoc++; //consider either new case or exit case and run prog block
+          break;
+        }
+      }
       break;
+    case 3:
+      //display.clear();
+      display.gotoXY(14,0);
+      display.print("       ");
+      display.gotoXY(16,0);
+      display.print(" in 3");
+      delay(1000);
+      display.gotoXY(16,0);
+      display.print(" in 2");
+      delay(1000);
+      display.gotoXY(16,0);
+      display.print(" in 1");
+      delay(1000);
+      display.gotoXY(0,0);
+      display.print("Set Distance: Running");
+
+      while(modeLoc != 4) {
+        if(millis() - prevTime >= deltaTime) {
+          prevTime = millis();
+          encCountsL = encoders.getCountsAndResetLeft();
+          encCountsR = encoders.getCountsAndResetRight();
+
+          distCurrent = (tick2cm(encCountsL) + tick2cm(encCountsR))/2;
+          velCurrent = distCurrent / (deltaTime/1000.0);
+          if (dir) {
+            distTotal += distCurrent;
+          } else {
+            distTotal -= distCurrent;
+          }
+          //consider moving motor logic block here
+          display.gotoXY(0,4);
+          display.print("Velocity: ");
+          if (dir) {
+            display.print(velCurrent);
+          } else {
+            display.print(-velCurrent);
+          }
+          display.print("cm\4");
+          display.print("  ");
+          display.gotoXY(0,5);
+          display.print("Distance: ");
+          if (dir) {
+            display.print(distTotal);
+          } else {
+            display.print(-distTotal);
+          }
+          display.print("cm");
+          display.print("  ");
+
+          if((dist - distTotal) >= 0) {
+            if (dir) {
+              motors.setSpeeds(speed, speed);
+            } else {
+              motors.setSpeeds(-speed, -speed);
+            }
+          } else {
+            motors.setSpeeds(0, 0);
+            display.gotoXY(0,0);
+            display.print("Set Distance:   Done!");
+            display.gotoXY(0,7);
+            display.print("          \5        \7 ");
+          }
+        }
+        if(buttonB.getSingleDebouncedPress()) {
+          motors.setSpeeds(0, 0);
+          modeLoc = 0;
+          break;
+        }
+        else if(buttonC.getSingleDebouncedPress()) {
+          motors.setSpeeds(0, 0);
+          modeLoc = 4;
+          break;
+        }
+      }
     default:
       break;
     }
-    //Run with set settings
   }
+}
+
+float tick2cm(int ticks) {
+  float cm;
+  cm = ticks * (1.0/12.0) * (1.0/29.86) * ((3.1*3.1416)/1);
+  return cm;
 }
