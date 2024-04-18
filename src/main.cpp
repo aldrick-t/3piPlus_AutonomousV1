@@ -2,7 +2,7 @@
 // 3pi+ Auto Roaming
 // All in one functionality test platform.
 // By: aldrick-t
-// Version: 1.0.6 (April 2024)
+// Version: 1.0.8 (April 2024)
 //
 //===============================
 
@@ -86,14 +86,14 @@ const char reverseArrows[] PROGMEM = {
 };
 
 const char perSec[] PROGMEM = {
-  0b00010,
-  0b00100,
-  0b01000,
-  0b10011,
-  0b00100,
-  0b00011,
-  0b00001,
-  0b00110
+  0B00000,
+  0B00010,
+  0B00100,
+  0B01011,
+  0B10100,
+  0B00011,
+  0B00001,
+  0B00110
 };
 
 const char reload[] PROGMEM = {
@@ -864,6 +864,7 @@ void setDist() {
   int dist = 0;
   bool dir = true;
   int speed = 0;
+  int speedInt = 0;
   int modeLoc = 0;
   int8_t deltaTime = 50; //time in ms
   double prevTime = 0; 
@@ -898,7 +899,7 @@ void setDist() {
         }
         else if(buttonB.getSingleDebouncedPress()) {
           // speed = calculo
-          speed = (speed * 400)/150;
+          speedInt = (speed * 400)/150;
           display.gotoXY(0,1);
           display.print("Speed:         ");
           modeLoc++;
@@ -1003,9 +1004,9 @@ void setDist() {
 
           if((dist - distTotal) >= 0) {
             if (dir) {
-              motors.setSpeeds(speed, speed);
+              motors.setSpeeds(speedInt, speedInt);
             } else {
-              motors.setSpeeds(-speed, -speed);
+              motors.setSpeeds(-speedInt, -speedInt);
             }
           } else {
             motors.setSpeeds(0, 0);
@@ -1017,6 +1018,7 @@ void setDist() {
         }
         if(buttonB.getSingleDebouncedPress()) {
           motors.setSpeeds(0, 0);
+          distTotal = 0;
           modeLoc = 0;
           break;
         }
