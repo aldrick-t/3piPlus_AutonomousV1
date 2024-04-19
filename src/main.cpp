@@ -1,7 +1,7 @@
 //===============================
 // 3pi+ Auto Roaming
 // All in one functionality test platform.
-// By: aldrick-t
+// By: aldrick-t, DaniDRG04
 // Version: 1.0.8 (April 2024)
 //
 //===============================
