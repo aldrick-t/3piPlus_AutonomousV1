@@ -1054,14 +1054,14 @@ void setCircuit() {
   
   int modeLoc = 0;
 
-  short int distSet = 0;
-  char minSpeed_set = 0;
-  char maxSpeed_set = 0;
-  short int angleSet = 0;
+  int distSet = 0;
+  int minSpeed_set = 0;
+  int maxSpeed_set = 0;
+  int angleSet = 0;
 
   //int8_t deltaTime = 50; //time in ms
-  //double prevTime = 0;
-  //float period = 0.05;
+  float prevTime = 0;
+  float period = 0.05;
 
   float distCurrent = 0;
   float distTotal = 0;
@@ -1077,14 +1077,14 @@ void setCircuit() {
   float angleCurrent = 0;
   float angleError = 0;
   float angleZero = 0;
-  float angle = 0;
+  float angleTotal = 0;
 
-  float kp_dist = 3;
-  float kp_angle = 1.5;
+  float kp_dist = 5;
+  float kp_angle = 2;
 
-  float maxSpeed_cms = 60;
-  float minSpeed_cms = 10;
-  char bumpIdent = 0; //0 = none, 1 = left, 2 = right
+  int maxSpeed_cms = 75;
+  int minSpeed_cms = 20;
+  int bumpIdent = 0; //0 = none, 1 = left, 2 = right
 
   int circuitSegment[4][2] = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
 
@@ -1110,7 +1110,7 @@ void setCircuit() {
         if(buttonC.getSingleDebouncedPress() && maxSpeed_cms < 150) {
           maxSpeed_cms = maxSpeed_cms + 5;
         }
-        else if(buttonA.getSingleDebouncedPress() && maxSpeed_cms > minSpeed_cms) {
+        else if(buttonA.getSingleDebouncedPress() && maxSpeed_cms > minSpeed_cms ) {
           maxSpeed_cms = maxSpeed_cms - 5;
         }
         else if(buttonB.getSingleDebouncedPress()) {
@@ -1158,10 +1158,10 @@ void setCircuit() {
         display.print("->");
         display.print(kp_dist);
         display.print("  ");
-        if (buttonC.getSingleDebouncedPress() && kp_dist < 10) {
+        if (buttonC.getSingleDebouncedPress() && kp_dist < 7) {
           kp_dist = kp_dist + 0.5;
         }
-        else if (buttonA.getSingleDebouncedPress() && kp_dist > 0) {
+        else if (buttonA.getSingleDebouncedPress() && kp_dist > 2) {
           kp_dist = kp_dist - 0.5;
         }
         else if (buttonB.getSingleDebouncedPress()) {
@@ -1178,10 +1178,10 @@ void setCircuit() {
         display.print("->");
         display.print(kp_angle);
         display.print("  ");
-        if (buttonC.getSingleDebouncedPress() && kp_angle < 5) {
+        if (buttonC.getSingleDebouncedPress() && kp_angle < 4) {
           kp_angle = kp_angle + 0.5;
         }
-        else if (buttonA.getSingleDebouncedPress() && kp_angle > 0) {
+        else if (buttonA.getSingleDebouncedPress() && kp_angle > 0.5) {
           kp_angle = kp_angle - 0.5;
         }
         else if (buttonB.getSingleDebouncedPress()) {
@@ -1282,123 +1282,180 @@ void setCircuit() {
       delay(1000);
       display.gotoXY(0,0);
       display.print("Set Circuit: Running");
+      display.gotoXY(0,7);
+      display.print("SKIP       \5       \7 ");
 
       for (int seg = 0; seg < 4; seg++) {
-        modeLoc = 0;
-        switch (modeLoc) {
-        case 0:
+        // modeLoc = 0;
+        // switch (modeLoc) {
+        // case 0:
+          angleTotal = 0;
+          angleCurrent = 0;
+          distTotal = 0;
+          distCurrent = 0;
           while(true) {
-            encCountsL = encoders.getCountsAndResetLeft();
-            encCountsR = encoders.getCountsAndResetRight();
-            bumpLeft = bumpSensors.leftIsPressed();
-            bumpRight = bumpSensors.rightIsPressed();
+            if (millis() - prevTime >= period*1000) {
+              prevTime = millis();
 
-            distCurrent = (tick2cm(encCountsL) + tick2cm(encCountsR))/2;
-            //velCurrent = distCurrent / (deltaTime/1000.0);
-            distTotal += distCurrent;
-            angleCurrent = angleCurrent + 1.6 * ((tick2deg(encCountsL) - tick2deg(encCountsR))/9);
+              encCountsL = encoders.getCountsAndResetLeft();
+              encCountsR = encoders.getCountsAndResetRight();
 
-            posError = circuitSegment[seg][0] - distTotal;
-            //angleError = circuitSegment[seg][1] - angleCurrent;
+              bumpLeft = bumpSensors.leftIsPressed();
+              bumpRight = bumpSensors.rightIsPressed();
 
-            if (posError > 0) {
+              distCurrent = (tick2cm(encCountsL) + tick2cm(encCountsR))/2;
+              distTotal += distCurrent;
+              angleTotal = angleTotal + 1.6 * ((tick2deg(encCountsR) - tick2deg(encCountsL))/9);
+              angleTotal += angleCurrent;
+              posError = circuitSegment[seg][0] - distTotal;
               speed = kp_dist * posError;
-            } else {
-              speed = 0;
-              modeLoc++;
-            }
-            if(speed > maxSpeed_set) {
-              speed = maxSpeed_set;
-            } else if(speed < minSpeed_set) {
-              speed = maxSpeed_set;
-            }
+              
+              //pos error calc
+              if (posError > 4) {
+                motors.setSpeeds(speed, speed);
+                if (bumpLeft || bumpRight) {
+                  while(true){
+                    motors.setSpeeds(0, 0);
+                    display.gotoXY(0,0);
+                    display.print("Set Circuit:   PAUSED");
+                    display.gotoXY(0,4);
+                    display.print("Hit Obstacle!        ");
+                    display.gotoXY(0,5);
+                    display.print("Set Action:          ");
+                    display.gotoXY(0,6);
+                    display.print(" A                 C ");
+                    display.gotoXY(0,7);
+                    display.print("CONTINUE        RESET");
 
-            //Angle Calc for Straight Path
-            angleError = angleZero - angleCurrent;
-            // Angle control rule
-            angle = kp_angle * angleError;
-
-            if (angle < 1) {
-              motors.setSpeeds(-speed, speed);
-            }
-            else if (angle > 1) {
-              motors.setSpeeds(speed, -speed);
-            }
-            else {
-              motors.setSpeeds(0, 0);
-            }
-
-            int segInt = seg + 1;
-            display.gotoXY(0,1);
-            display.print("Segment: " + (segInt));
-            display.gotoXY(0,2);
-            display.print("Distance: ");
-            display.print(distTotal);
-            display.print("cm");
-            display.print("  ");
-            display.gotoXY(0,3);
-            display.print("Angle:    ");
-            display.print(angleCurrent);
-            display.print("° ");
-            display.print("  ");
-            display.gotoXY(0,4);
-            display.print("Straight Path...     ");
-
-            if (bumpLeft || bumpRight) {
-                modeLoc == 20;
-                while (modeLoc == 20){
-                  motors.setSpeeds(0, 0);
-                  display.gotoXY(0,0);
-                  display.print("Set Circuit:   PAUSED");
-                  display.gotoXY(0,4);
-                  display.print("Hit Obstacle!        ");
-                  display.gotoXY(0,5);
-                  display.print("Set Action:          ");
-                  display.gotoXY(0,6);
-                  display.print(" A                 C ");
-                  display.gotoXY(0,7);
-                  display.print("CONTINUE        RESET");
-
-                  if(buttonA.getSingleDebouncedPress()) {
-                    modeLoc = 0;
-                    if (bumpLeft) {
-                      bumpIdent = 1;
-                    } else if (bumpRight) {
-                      bumpIdent = 2;
+                    if(buttonA.getSingleDebouncedPress()) {
+                      //modeLoc = 0;
+                      if (bumpLeft) {
+                        bumpIdent = 1;
+                      } else if (bumpRight) {
+                        bumpIdent = 2;
+                      }
+                      break;
                     }
-                    break;
-                  }
-                  else if(buttonC.getSingleDebouncedPress()) {
-                    modeLoc = 10;
-                    break;
+                    else if(buttonC.getSingleDebouncedPress()) {
+                      //modeLoc = 10;
+                      break;
+                    }
                   }
                 }
-              } 
-          }
-          break;
-        case 1:
-          encCountsL = encoders.getCountsAndResetRight();
-          encCountsR = encoders.getCountsAndResetLeft();
-          
-          angleError = circuitSegment[seg][1] - angleCurrent;
-          // Angle control rule
-          angle = kp_angle * angleError;
+              } else {
+                motors.setSpeeds(0, 0);
+                //modeLoc = 1;
+                break;
+              }
+                         
+              //speed limits
+              if(speed > maxSpeed_set) {
+                speed = maxSpeed_set;
+              }
+              if(speed < minSpeed_set) {
+                speed = minSpeed_set;
+              }
 
-          if (angle < 1) {
-            motors.setSpeeds(-speed, speed);
+
+              // //Angle Calc for Straight Path
+              // angleError = angleZero - angleCurrent;
+              // // Angle control rule
+              // angle = kp_angle * angleError;
+
+              // if (angleError > 1) {
+              //   motors.setSpeeds(speed-10, speed);
+              // }
+              // else if (angleError < -1) {
+              //   motors.setSpeeds(speed, speed-10);
+              // }
+
+              int segInt = seg + 1;
+              display.gotoXY(0,1);
+              display.print("Segment: ");
+              display.print(segInt);
+              display.print(" of 4");
+              display.gotoXY(0,2);
+              display.print("Distance: ");
+              display.print(distTotal);
+              display.print("cm");
+              display.print("  ");
+              display.gotoXY(0,3);
+              display.print("Angle:    ");
+              display.print(angleTotal);
+              display.print("deg");
+              display.print("  ");
+              display.gotoXY(0,4);
+              display.print("Straight Path...     ");
+
+               
+            }
           }
-          else if (angle > 1) {
-            motors.setSpeeds(speed, -speed);
+        //   break;
+        // case 1:
+        //   delay(100);
+          angleTotal = 0;
+          angleCurrent = 0;
+          
+          while(true) {
+            if (millis() - prevTime >= period*1000) {
+              prevTime = millis();
+              encCountsL = encoders.getCountsAndResetRight();
+              encCountsR = encoders.getCountsAndResetLeft();
+
+              angleTotal = angleTotal + 1.6 * ((tick2deg(encCountsL) - tick2deg(encCountsR))/9);
+              //angleTotal += angleCurrent;
+              if (circuitSegment[seg][1] < 0) {
+                angleError = circuitSegment[seg][1] + angleTotal;
+              }
+              else {
+                angleError = circuitSegment[seg][1] - angleTotal;
+              }
+              // Angle control rule
+              speed = kp_angle * angleError;
+               
+              
+              if (angleError > 2) {
+                motors.setSpeeds(-speed, speed);
+                if (speed > maxSpeed_set) {
+                  speed = maxSpeed_set;
+                }
+                if (speed < minSpeed_set) {
+                  speed = minSpeed_set;
+                }
+              }
+              else if (angleError > 2 && circuitSegment[seg][1] < 0) {
+                motors.setSpeeds(speed, -speed);
+                if (speed > maxSpeed_set) {
+                  speed = maxSpeed_set;
+                }
+                if (speed < minSpeed_set) {
+                  speed = minSpeed_set;
+                }
+              }
+              else {
+                motors.setSpeeds(0, 0);
+                break;
+              }
+
+
+
+              display.gotoXY(0,3);
+              display.print("Angle:    ");
+              display.print(angleTotal);
+              display.print("deg");
+              display.print("  ");
+              display.gotoXY(0,4);
+              display.print("Turning...           ");
+            }
           }
-          else {
-            motors.setSpeeds(0, 0);
-          }
-          break;
-        }
+          //break;
+        //}
       
       }
+      modeLoc++;
       break;
     default:
+      modeLoc = 10;
       break;
     }
   }
